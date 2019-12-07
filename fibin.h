@@ -153,7 +153,15 @@ template<typename Arg1, typename Arg2, typename... Args>
 struct Sum {
 };
 
-namespace details {
+//////////////////////////////////////////////////////////////////////
+
+
+// class Fibin
+template<typename ValueType>
+class Fibin {
+
+
+private:
 
 //empty environment
     struct EmptyEnv;
@@ -192,16 +200,6 @@ namespace details {
 //  EVAL
 //
 
-
-}
-//////////////////////////////////////////////////////////////////////
-
-
-// class Fibin
-template<typename ValueType>
-class Fibin {
-private:
-
     template<ValueType v>
     struct Calc {
         constexpr static ValueType val = v;
@@ -232,7 +230,7 @@ private:
 // Ref - result is a value binded to "name"
     template<uint32_t name, typename Env>
     struct Eval<Ref<name>, Env> {
-        typename Eval<typename details::FindVar<name, Env>::result, Env>::result typedef result;
+        typename Eval<typename FindVar<name, Env>::result, Env>::result typedef result;
     };
 
 // Lambda - add to environment pair: name with value that was before in Env,
@@ -240,7 +238,7 @@ private:
 // and eval expression from Body in this new environment
     template<uint32_t name, typename Body, typename Env>
     struct Eval<Lambda<name, Body>, Env> {
-        typename Eval<Body, details::Binding<name, typename details::FindVar<0, Env>::result,
+        typename Eval<Body, Binding<name, typename FindVar<0, Env>::result,
                 Env>>::result typedef result;
     };
 
@@ -248,14 +246,14 @@ private:
 // parameter has already a name) and eval Function
     template<typename Fun, typename Arg, typename Env>
     struct Eval<Invoke<Fun, Arg>, Env> {
-        typename Eval<Fun, details::Binding<0, Arg, Env>>::result typedef result;
+        typename Eval<Fun, Binding<0, Arg, Env>>::result typedef result;
     };
 
 // Invoke - specialisation when Fun isn't Lambda, but reference to Lambda
     template<uint32_t name, typename Arg, typename Env>
     struct Eval<Invoke<Ref<name>, Arg>, Env> {
-        typename Eval<typename details::FindVar<name, Env>::result,
-                details::Binding<0, Arg, typename details::FindVar<name, Env>::env>>::result typedef result;
+        typename Eval<typename FindVar<name, Env>::result,
+                Binding<0, Arg, typename FindVar<name, Env>::env>>::result typedef result;
     };
 
 // If - check is condition True or False and evaluate appropriate branch
@@ -294,7 +292,7 @@ private:
     template<typename T1, typename T2, typename Env>
     struct Eval<Eq<T1, T2>, Env> {
         typename Eval<Eq<Lit<typename Eval<T1, Env>::result>,
-                         Lit<typename Eval<T2, Env>::result>>,
+                Lit<typename Eval<T2, Env>::result>>,
                 Env>::result typedef result;
     };
 
@@ -341,8 +339,10 @@ private:
 // and evaluate the Expression (in new Env that contains this binding)
     template<uint32_t name, typename Value, typename Expr, typename Env>
     struct Eval<Let<name, Value, Expr>, Env> {
-        typename Eval<Expr, details::Binding<name, Value, Env>>::result typedef result;
+        typename Eval<Expr, Binding<name, Value, Env>>::result typedef result;
     };
+
+
 
 public:
 
@@ -358,7 +358,7 @@ public:
     template<typename Expr, typename fake = ValueType,
             typename = typename std::enable_if_t<std::is_integral<fake>::value>>
     constexpr static ValueType eval() {
-        return (ValueType) Eval<Expr, details::EmptyEnv>::result::val;
+        return (ValueType) Eval<Expr, EmptyEnv>::result::val;
     }
 };
 
