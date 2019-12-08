@@ -115,6 +115,7 @@ constexpr uint32_t Var(const char *name) {
 
 template<typename T>
 struct Lit {
+    constexpr static uint64_t val = T::val;
 };
 
 template<uint32_t Var>
@@ -218,75 +219,85 @@ private:
 // Lit - general, result is a type of Lit
     template<typename T, typename Env>
     struct Eval<Lit<T>, Env> {
-        T typedef result;
+        Lit<T> typedef result;
     };
 
 // Lit - specification for Fib
-    template<ValueType n, typename Env>
+    template<uint64_t n, typename Env>
     struct Eval<Lit<Fib<n>>, Env> {
-        Fib<n> typedef result;
+        Lit<Fib<n>> typedef result;
     };
 
 // Ref - result is a value binded to "name"
     template<uint32_t name, typename Env>
     struct Eval<Ref<name>, Env> {
-        typename Eval<typename FindVar<name, Env>::result, Env>::result typedef result;
+        typename Eval<typename FindVar<name, Env>::result, Env>::result
+        typedef result;
     };
+
+    template <typename Body, typename Env>
+    struct Function{};
+
 
 // Lambda - add to environment pair: name with value that was before in Env,
 // but with name "0" (what is impossible in time of hash operation)
 // and eval expression from Body in this new environment
     template<uint32_t name, typename Body, typename Env>
     struct Eval<Lambda<name, Body>, Env> {
-        typename Eval<Body, Binding<name, typename FindVar<0, Env>::result,
-                Env>>::result typedef result;
+        Function<Lambda<name, Body>, Env> typedef result;
     };
 
 // Invoke - bind function argument to name "0" (to save the info that this
 // parameter has already a name) and eval Function
     template<typename Fun, typename Arg, typename Env>
     struct Eval<Invoke<Fun, Arg>, Env> {
-        typename Eval<Fun, Binding<0, Arg, Env>>::result typedef result;
+        typename Eval<Invoke<typename Eval<Fun, Env>::result, Arg>, Env>::result typedef result;
+    };
+
+    template<uint32_t name, typename Body, typename Arg, typename FunctionEnv, typename Env>
+    struct Eval<Invoke<Function<Lambda<name, Body>, FunctionEnv>, Arg>, Env> {
+        typename Eval<Body, Binding<name, Arg, FunctionEnv>>::result typedef result;
+
     };
 
 // Invoke - specialisation when Fun isn't Lambda, but reference to Lambda
     template<uint32_t name, typename Arg, typename Env>
     struct Eval<Invoke<Ref<name>, Arg>, Env> {
-        typename Eval<typename FindVar<name, Env>::result,
-                Binding<0, Arg, typename FindVar<name, Env>::env>>::result typedef result;
+        typename Eval<Invoke<typename FindVar<name, Env>::result, Arg>,
+                typename FindVar<name, Env>::env>::result
+        typedef result;
     };
 
 // If - check is condition True or False and evaluate appropriate branch
     template<typename Cond, typename Then, typename Else, typename Env>
     struct Eval<If<Cond, Then, Else>, Env> {
-        typename Eval<If<typename Eval<Cond, Env>::result, Then, Else>, Env>::result
-        typedef result;
+        typename Eval<If<typename Eval<Cond, Env>::result, Then, Else>,
+                Env>::result typedef result;
     };
 
 // If - branch True
     template<typename Then, typename Else, typename Env>
-    struct Eval<If<True, Then, Else>, Env> {
+    struct Eval<If<Lit<True>, Then, Else>, Env> {
         typename Eval<Then, Env>::result typedef result;
     };
 
 // If - branch False
     template<typename Then, typename Else, typename Env>
-    struct Eval<If<False, Then, Else>, Env> {
+    struct Eval<If<Lit<False>, Then, Else>, Env> {
         typename Eval<Else, Env>::result typedef result;
     };
 
-    template <ValueType n1, ValueType n2>
-    struct NumEq
-    {
-        False typedef result;
+// Eq - not equal when have two different values
+    template<ValueType n1, ValueType n2>
+    struct NumEq {
+        Lit<False> typedef result;
     };
 
-    template <ValueType n1>
-    struct NumEq<n1, n1>
-    {
-        True typedef result;
+// Eq - equal when have two the same values
+    template<ValueType n1>
+    struct NumEq<n1, n1> {
+        Lit<True> typedef result;
     };
-
 
 // Eq - check whether two parameters are equal
     template<typename T1, typename T2, typename Env>
@@ -299,13 +310,14 @@ private:
 // Eq - specialisation when expressions are just the same
     template<typename T1, typename Env>
     struct Eval<Eq<T1, T1>, Env> {
-        True typedef result;
+        Lit<True> typedef result;
     };
 
 // Eq - specialisation when both expressions are Literals
     template<typename T1, typename T2, typename Env>
     struct Eval<Eq<Lit<T1>, Lit<T2>>, Env> {
-        typename NumEq<(ValueType) T1::val, (ValueType) T2::val>::result typedef result;
+        typename NumEq<(ValueType) T1::val, (ValueType) T2::val>::result
+        typedef result;
     };
 
 
@@ -335,14 +347,22 @@ private:
         typename Eval<Sum<Arg, Lit<Fib<10>>>, Env>::result typedef result;
     };
 
-// Let - bind name with Value
+// Let - bind the name with evaluated Value (if it isn't Lambda)
 // and evaluate the Expression (in new Env that contains this binding)
     template<uint32_t name, typename Value, typename Expr, typename Env>
     struct Eval<Let<name, Value, Expr>, Env> {
-        typename Eval<Expr, Binding<name, Value, Env>>::result typedef result;
+        typename Eval<Expr, Binding<name,
+                typename Eval<Value, Env>::result, Env>>::result typedef result;
     };
 
-
+// Let - bind the with Lambda
+// and evaluate the Expression (in new Env that contains this binding)
+    template<uint32_t name, uint32_t Var, typename Body,
+            typename Expr, typename Env>
+    struct Eval<Let<name, Lambda<Var, Body>, Expr>, Env> {
+        typename Eval<Expr,
+                Binding<name, Lambda<Var, Body>, Env>>::result typedef result;
+    };
 
 public:
 
